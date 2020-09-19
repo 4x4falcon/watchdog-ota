@@ -1,4 +1,4 @@
-# watchdog-ota
+# watchdog-ota-class
 
 ESP32 watchdog timer for two devices.
 
