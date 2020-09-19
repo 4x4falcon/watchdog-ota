@@ -12,11 +12,23 @@ import utime
 
 from functions import *
 
-led = Pin(2, Pin.OUT)
-ledstate = 0
+esp32 = True
+# select esp32 or esp8266
+from os import uname
+if (uname().sysname == 'esp8266'):
+	esp32 = False
+	print ("found esp8266")
 
-relay_1 = Pin(22, Pin.OUT)
-relay_2 = Pin(21, Pin.OUT)
+
+ledstate = 0
+led = Pin(2, Pin.OUT)
+
+if (esp32):
+	relay_1 = Pin(17, Pin.OUT)			# Pin(22, Pin.OUT)
+	relay_2 = Pin(16, Pin.OUT)			# Pin(21, Pin.OUT)
+else:
+	relay_1 = Pin(3, Pin.OUT)
+	relay_2 = Pin(4, Pin.OUT)
 
 # maximum time that can elapse before watchdog resets the attached device
 # 5 minutes = 5 * 60s
