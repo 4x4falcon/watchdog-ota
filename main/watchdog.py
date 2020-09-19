@@ -24,10 +24,10 @@ ledstate = 0
 led = Pin(2, Pin.OUT)
 
 if (esp32):
-	relay_1 = Pin(17, Pin.OUT)			# Pin(22, Pin.OUT)
-	relay_2 = Pin(16, Pin.OUT)			# Pin(21, Pin.OUT)
+	relay_1 = Pin(22, Pin.OUT)
+	relay_2 = Pin(21, Pin.OUT)
 else:
-	relay_1 = Pin(3, Pin.OUT)
+	relay_1 = Pin(5, Pin.OUT)
 	relay_2 = Pin(4, Pin.OUT)
 
 # maximum time that can elapse before watchdog resets the attached device
@@ -268,4 +268,5 @@ while True:
 	conn.send('Connection: close\n\n')
 	conn.sendall(response)
 	conn.close()
+
 
