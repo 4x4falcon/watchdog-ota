@@ -9,8 +9,9 @@ from machine import Pin, RTC, Timer
 import network
 import time
 import utime
+import json
 
-from functions import *
+from .functions import *
 
 esp32 = True
 # select esp32 or esp8266
@@ -32,12 +33,45 @@ else:
 
 # maximum time that can elapse before watchdog resets the attached device
 # 5 minutes = 5 * 60s
-max_time = 30 * 60
+max_time = 5 * 60
+
+try:
+        with open('watchdog/main/config/config.json') as cf:
+                config = json.load(cf)
+
+except Exception:
+	print("not on ota")
+
+else:
+	try:
+        	with open('config/config.json') as cf:
+                	config = json.load(cf)
+	except Exception:
+		pass
+
+max_time = int(float(config['config']['maxtime']) * 60)
+
 
 
 rtc = RTC()
 # synchronize with ntp
 # need to be connected to wifi
+
+# load wifi config
+wifi_cfg = None
+try:
+	with open('config/wifi_cfg.json') as cf:
+		wifi_cfg = json.load(cf)
+	print ("SSID: ", wifi_cfg['wifi']['ssid'])
+	print ("PW: ", wifi_cfg['wifi']['password'])
+
+except Exception:
+	print ("No file")
+	pass
+
+
+# connect to wifi
+do_connect(wifi_cfg['wifi']['ssid'], wifi_cfg['wifi']['password'])
 
 import ntptime
 
@@ -226,47 +260,51 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind(('', 80))
 s.listen(5)
 
-while True:
+try:
+	while True:
 # reset the hardware watchdog for this device
-	resetHWWatchdog()
+		resetHWWatchdog()
 
-	conn, addr = s.accept()
-	print('Got a connection from %s' % str(addr))
-	request = conn.recv(1024)
-	request = str(request)
+		conn, addr = s.accept()
+		print('Got a connection from %s' % str(addr))
+		request = conn.recv(1024)
+		request = str(request)
 
-	led_on1 = request.find('/?led=on1')
-	led_off1 = request.find('/?led=off1')
-	led_on2 = request.find('/?led=on2')
-	led_off2 = request.find('/?led=off2')
-	led_restart1 = request.find('/?led=restart1')
-	led_restart2 = request.find('/?led=restart2')
-	led_watchdog1 = request.find('/?led=watchdog1')
-	led_watchdog2 = request.find('/?led=watchdog2')
+		led_on1 = request.find('/?led=on1')
+		led_off1 = request.find('/?led=off1')
+		led_on2 = request.find('/?led=on2')
+		led_off2 = request.find('/?led=off2')
+		led_restart1 = request.find('/?led=restart1')
+		led_restart2 = request.find('/?led=restart2')
+		led_watchdog1 = request.find('/?led=watchdog1')
+		led_watchdog2 = request.find('/?led=watchdog2')
 
-	if led_on1 == 6:
-		turn_on_1()
-	if led_off1 == 6:
-		turn_off_1()
-	if led_restart1 == 6:
-		restart_1()
-	if led_watchdog1 == 6:
-		watchdog_1()
+		if led_on1 == 6:
+			turn_on_1()
+		if led_off1 == 6:
+			turn_off_1()
+		if led_restart1 == 6:
+			restart_1()
+		if led_watchdog1 == 6:
+			watchdog_1()
 
-	if led_on2 == 6:
-		turn_on_2()
-	if led_off2 == 6:
-		turn_off_2()
-	if led_restart2 == 6:
-		restart_2()
-	if led_watchdog2 == 6:
-		watchdog_2()
+		if led_on2 == 6:
+			turn_on_2()
+		if led_off2 == 6:
+			turn_off_2()
+		if led_restart2 == 6:
+			restart_2()
+		if led_watchdog2 == 6:
+			watchdog_2()
 
-	response = web_page()
-	conn.send('HTTP/1.1 200 OK\n')
-	conn.send('Content-Type: text/html\n')
-	conn.send('Connection: close\n\n')
-	conn.sendall(response)
-	conn.close()
+		response = web_page()
+		conn.send('HTTP/1.1 200 OK\n')
+		conn.send('Content-Type: text/html\n')
+		conn.send('Connection: close\n\n')
+		conn.sendall(response)
+		conn.close()
 
+except KeyboardInterrupt:
+	timer.deinit()
+	print('Caught Control-C')
 
