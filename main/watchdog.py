@@ -38,21 +38,34 @@ else:
 # 5 minutes = 5 * 60s
 max_time = 5 * 60
 
+# load configuration from json file
+# Items are:
+#	un	username for simple http authentication
+#	pw	password for above
+#	name	name displayed on index page
+#	ntphost	ntp host to use for time sync
+#	maxtime	maximum time to allow for reset of devices (decimal minutes eg 1.5)
+
 try:
-        with open('pw/main/config/config.json') as cf:
-                config = json.load(cf)
+	with open('watchdog/main/config/config.json') as cf:
+		config = json.load(cf)
 	max_time = int(float(config['config']['maxtime']) * 60)
 	un = config['config']['un']
 	pw = config['config']['pw']
 	name = config['config']['name']
+	ntp_host = config['config']['ntphost']
+	max_time = int(float(config['config']['maxtime']) * 60)
+
+
+
 
 except Exception:
 	print("not on ota")
 
 else:
 	try:
-        	with open('config/config.json') as cf:
-                	config = json.load(cf)
+		with open('config/config.json') as cf:
+			config = json.load(cf)
 		max_time = int(float(config['config']['maxtime']) * 60)
 
 	except Exception:
@@ -60,18 +73,23 @@ else:
 
 
 # connect to wifi
-def do_connect(SSID, Pass):
+def do_connect(SSID, Pass, Host):
 	import network
 	print("connecting to: ", SSID)
+	print("with hostname: ", Host)
 	wlan = network.WLAN(network.STA_IF)
 	wlan.active(True)
-	wlan.config(dhcp_hostname='wd')
 	if not wlan.isconnected():
 		print('connecting to network...')
 		wlan.connect(SSID, Pass)
 		while not wlan.isconnected():
 			pass
+
+	print("with hostname: ", Host)
+	wlan.config(dhcp_hostname=Host)
+
 	print('network config:', wlan.ifconfig())
+
 
 
 try:
@@ -79,11 +97,12 @@ try:
                 wifi_cfg = json.load(cf)
         print ("SSID: ", wifi_cfg['wifi']['ssid'])
         print ("PW: ", wifi_cfg['wifi']['password'])
+	print ("Hostname: ", wifi_cfg['wifi']['hostname'])
 
 except Exception:
                 pass
 
-do_connect(wifi_cfg['wifi']['ssid'], wifi_cfg['wifi']['password'])
+do_connect(wifi_cfg['wifi']['ssid'], wifi_cfg['wifi']['password'], wifi_cfg['wifi']['hostname'])
 
 
 rtc = RTC()
@@ -94,18 +113,20 @@ rtc = RTC()
 print ("Getting ntp time")
 import ntptime
 
-tries = 10
+tries = 3
 for i in range(tries):
-        try:
-		ntptime.settime(server="au.pool.ntp.org") # set the rtc datetime from the remote server
-		rtc.datetime()    # get the date and time in UTC
+	try:
+		ntptime.host = '10.0.0.34'	#	'pool.ntp.org' # set the rtc datetime from the remote server
+		ntptime.host = ntp_host		#	'pool.ntp.org' # set the rtc datetime from the remote server
+		ntptime.settime()		# set the rtc datetime from the remote server
+		rtc.datetime()			# get the date and time in UTC
 		print("Sync ntp")
-        except:
-                if i < tries - 1: # i is zero indexed
+	except:
+		if i < tries - 1: # i is zero indexed
 			print(".")
 			time.sleep_ms(10000)
 			continue
-        break
+	break
 
 
 watchdog_time_1 = utime.time()
@@ -154,9 +175,7 @@ HWWPin = Pin(5, Pin.OUT)
 
 def resetHWWatchdog():
 	global HWWPin
-
 	print ("Reset Watchdog Watchdog")
-
 	HWWPin.on()
 	time.sleep_ms(20)
 	HWWPin.off()
@@ -282,6 +301,7 @@ def index(req, resp):
 
 	yield from picoweb.start_response(resp)
 	yield from app.render_template(resp, "watchdog.tpl", (data,))
+#	yield from resp.awrite("Hello from name: %s, ntp time: %s" % (data['name'], data['ntp']))
 
 
 @app.route("/squares")
@@ -386,7 +406,7 @@ try:
 	import ulogging as logging
 	logging.basicConfig(level=logging.INFO)
 
-	app.run(debug=True, host="10.0.0.23", port=80)
+	app.run(debug=True, host="10.0.0.110", port=80)
 
 
 except KeyboardInterrupt:
