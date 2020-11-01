@@ -1,1 +1,1 @@
-{"config": {"maxtime": "10", "un": "tihc55", "pw": "169dead961" , "name": "The Internet Host Net Watchdog Timer", "ntphost": "10.0.0.34"} }
+{"config": {"maxtime": "4.5", "un": "tihc55", "pw": "169dead961" , "name": "The Internet Host Net Watchdog Timer", "ntphost": "10.0.0.34", "relaystart": "0", "localip": "10.0.0.110"} }

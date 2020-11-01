@@ -1,6 +1,6 @@
-# picoweb test
+# picoweb watchdog
 
-print ("starting picoweb test")
+print ("starting picoweb watchdog")
 
 import network
 import json
@@ -14,6 +14,7 @@ from machine import Pin, RTC, Timer
 import time
 import utime
 
+print("esp32 check")
 
 esp32 = True
 # select esp32 or esp8266
@@ -23,20 +24,12 @@ if (uname().sysname == 'esp8266'):
 	print ("found esp8266")
 
 
-ledstate = 0
-led = Pin(2, Pin.OUT)
-
-if (esp32):
-	relay_1 = Pin(22, Pin.OUT)
-	relay_2 = Pin(21, Pin.OUT)
-else:
-	relay_1 = Pin(5, Pin.OUT)
-	relay_2 = Pin(4, Pin.OUT)
 
 
 # maximum time that can elapse before watchdog resets the attached device
-# 5 minutes = 5 * 60s
-max_time = 5 * 60
+# 4 minutes = 4 * 60s
+# this needs to be less than 5 minutes as the freetronics hardware watchdog will reset this otherwise
+max_time = int(4.5 * 60)
 
 # load configuration from json file
 # Items are:
@@ -45,6 +38,10 @@ max_time = 5 * 60
 #	name	name displayed on index page
 #	ntphost	ntp host to use for time sync
 #	maxtime	maximum time to allow for reset of devices (decimal minutes eg 1.5)
+#	relaystart	1 or 0 depending on the relay board
+#	localip		local ip address for server
+
+print("Get config")
 
 try:
 	with open('watchdog/main/config/config.json') as cf:
@@ -55,9 +52,10 @@ try:
 	name = config['config']['name']
 	ntp_host = config['config']['ntphost']
 	max_time = int(float(config['config']['maxtime']) * 60)
-
-
-
+	if (max_time > int(4.9 * 60)):
+		max_time = int(4.5 * 60)
+	relay_start = int(config['config']['relaystart'])
+	local_ip = config['config']['localip']
 
 except Exception:
 	print("not on ota")
@@ -67,18 +65,71 @@ else:
 		with open('config/config.json') as cf:
 			config = json.load(cf)
 		max_time = int(float(config['config']['maxtime']) * 60)
+		un = config['config']['un']
+		pw = config['config']['pw']
+		name = config['config']['name']
+		ntp_host = config['config']['ntphost']
+		max_time = int(float(config['config']['maxtime']) * 60)
+		relay_start = int(config['config']['relaystart'])
 
 	except Exception:
 		pass
 
 
+try:
+	f = open('ota_updater/main/.version')
+	otav = f.read().strip()
+	f.close
+except:
+	otav = "Unknown"
+
+print ("otav: ", otav)
+
+try:
+	f = open('watchdog/main/.version')
+	wdv = f.read().strip()
+	f.close
+except:
+	wdv = "Unknown"
+
+print ("wdv: ", wdv)
+
+
+
+ledstate = 0
+led = Pin(2, Pin.OUT)
+led.value(ledstate)
+
+# pin toggle
+def toggle(p):
+	p.value(not p.value())
+
+
+
+if (esp32):
+	relay_1 = Pin(22, Pin.OUT)
+	relay_2 = Pin(21, Pin.OUT)
+else:
+	relay_1 = Pin(5, Pin.OUT)
+	relay_2 = Pin(4, Pin.OUT)
+
+relay_1.value(relay_start)
+relay_2.value(relay_start)
+
+
+
+
 # connect to wifi
 def do_connect(SSID, Pass, Host):
 	import network
+	global local_ip
+
 	print("connecting to: ", SSID)
 	print("with hostname: ", Host)
 	wlan = network.WLAN(network.STA_IF)
 	wlan.active(True)
+
+
 	if not wlan.isconnected():
 		print('connecting to network...')
 		wlan.connect(SSID, Pass)
@@ -89,7 +140,7 @@ def do_connect(SSID, Pass, Host):
 	wlan.config(dhcp_hostname=Host)
 
 	print('network config:', wlan.ifconfig())
-
+	return wlan.ifconfig()[0]
 
 
 try:
@@ -102,7 +153,7 @@ try:
 except Exception:
                 pass
 
-do_connect(wifi_cfg['wifi']['ssid'], wifi_cfg['wifi']['password'], wifi_cfg['wifi']['hostname'])
+local_ip = do_connect(wifi_cfg['wifi']['ssid'], wifi_cfg['wifi']['password'], wifi_cfg['wifi']['hostname'])
 
 
 rtc = RTC()
@@ -219,30 +270,31 @@ def require_auth(func):
 
 def turn_on(relay):
 	if (relay == 1):
-		relay_1.on()
+		relay_1.value(not relay_1.value())
 		led.on()
 		time.sleep(1)
-		relay_1.off()
+		relay_1.value(not relay_1.value())
 		led.off()
+
 	elif (relay == 2):
-		relay_2.on()
+		relay_2.value(not relay_2.value())
 		led.on()
 		time.sleep(1)
-		relay_2.off()
+		relay_2.value(not relay_2.value())
 		led.off()
 
 def turn_off(relay):
 	if (relay == 1):
-		relay_1.on()
+		relay_1.value(not relay_1.value())
 		led.on()
 		time.sleep(15)
-		relay_1.off()
+		relay_1.value(not relay_1.value())
 		led.off()
 	elif (relay == 2):
-		relay_2.on()
+		relay_2.value(not relay_2.value())
 		led.on()
 		time.sleep(15)
-		relay_2.off()
+		relay_2.value(not relay_2.value())
 		led.off()
 
 def res(relay):
@@ -297,7 +349,7 @@ def index(req, resp):
 #	print('t1 =', t)
 	ntp_t = '{:04d}/{:02d}/{:02d} {:02d}:{:02d}:{:02d}:{:02d} UTC'.format(t[0], t[1], t[2], t[3], t[4], t[5], t[6])
 
-	data = {"ntp": ntp_t, "wd1": wd_time_1, "wd2": wd_time_2, "name": name}
+	data = {"ntp": ntp_t, "wd1": wd_time_1, "wd2": wd_time_2, "name": name, "otav": otav, "wdv": wdv}
 
 	yield from picoweb.start_response(resp)
 	yield from app.render_template(resp, "watchdog.tpl", (data,))
@@ -338,7 +390,7 @@ def styles(req, resp):
 #		file_path += ".gz"
 #		headers += b"Content-Encoding: gzip\r\n"
 #	print("sending " + file_path)
-	yield from app.sendfile(resp, "static/" + file_path, "text/css", headers)
+	yield from app.sendfile(resp, "main/static/" + file_path, "text/css", headers)
 
 # on response
 @app.route(re.compile('^\/(on_.+)$'))
@@ -406,7 +458,7 @@ try:
 	import ulogging as logging
 	logging.basicConfig(level=logging.INFO)
 
-	app.run(debug=True, host="10.0.0.110", port=80)
+	app.run(debug=True, host=local_ip, port=80)
 
 
 except KeyboardInterrupt:
